@@ -7,10 +7,6 @@ output: html_document
 
 ```{r}
 
-# may need to install these packages for dependencies etc.
-# remotes::install_github("coolbutuseless/ggpattern")
-# install.packages("BiocManager")
-# BiocManager::install("EBImage")
 library(extrafont)
 library(tidyverse)
 library(readxl)

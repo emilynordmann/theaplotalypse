@@ -105,8 +105,6 @@ p1 <- waf +
           axis.ticks = element_blank())
 p1
 
-![alt text](p1)
-
 
 ```
 

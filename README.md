@@ -63,7 +63,7 @@ theme_update(plot.background = element_rect(color=bgcol,fill=bgcol),
 
 ```
 
-# Patchwork
+# Patchwork (the game, not the package)
 
 ```{r}
 # calculate percent wins for each
@@ -104,6 +104,8 @@ p1 <- waf +
           axis.line = element_blank(), 
           axis.ticks = element_blank())
 p1
+
+![alt text](p1)
 
 
 ```

@@ -1,0 +1,134 @@
+---
+title: "The Aplotalypse"
+author: "Emily Nordmann"
+date: "13/04/2020"
+output: html_document
+---
+
+```{r}
+
+library(extrafont)
+library(tidyverse)
+library(readxl)
+library(patchwork)
+library(gridExtra)
+library(waffle)
+library(magick)
+library(grid)
+
+splendor_game <- read_excel("games.xlsx", sheet = "Splendor")%>%
+  select(-First) %>%
+  drop_na() 
+
+```
+
+# Set up colours for the graphs
+
+```{r}
+splendor_colours <- c("#E1E42F", "#474C61")
+```
+
+# Theme stuff
+
+```{r}
+my_theme <- theme(plot.title = element_text(size=20, 
+                                            family = "Verdana", 
+                                            face = "bold", 
+                                            hjust = 0.5),
+                  plot.subtitle = element_text(size = 10, 
+                                            family = "Verdana",
+                                            hjust = 0.5),
+                  axis.line = element_blank(), 
+                  axis.ticks = element_blank(),
+                  plot.background = element_rect("#c3ccdc"),
+                  legend.background = element_rect("#c3ccdc"),
+                  legend.text = element_text(family = "Verdana"),
+                  panel.background = element_rect("#c3ccdc"))
+
+```
+
+
+```{r}
+# calculate percent wins for each player
+
+splendor_wins <- splendor_game %>%
+  group_by(Winner) %>%
+  count() %>%
+  ungroup() %>%
+  mutate(prop = n/sum(n),
+         percent = prop * 100,
+         ymax = cumsum(prop),
+         ymin = c(0, head(ymax, n=-1)),
+         labelPosition = (ymax + ymin) /2,
+         label = paste0(Winner, "\n ", round(percent,2), "%"))
+```
+
+
+Waffle plot
+
+```{r}
+splendor_game %>%
+  count(Winner) %>%
+  ggplot(aes(fill = Winner, values = n)) +
+  expand_limits(x=c(0,0), y=c(0,0)) +
+  coord_equal() +
+  labs(fill = NULL, colour = NULL) +
+  guides(fill = NULL, colour = NULL, x = NULL, y = NULL) +
+  theme_enhance_waffle()+
+  geom_waffle(n_rows = 10, # number of rows
+              size = .8, # thickness of tile line
+              colour = "black", # colour of tile line
+              flip = F, # controls if split left/right or up/down 
+              radius = unit(4, "pt"), # adds gap between tiles
+              show.legend = F,
+              make_proportional = TRUE) + 
+  scale_fill_manual(values = splendor_colours) +
+  geom_label(family = "Verdana", 
+             x=c(3.5, 9), 
+             aes(y=5.5, 
+                 label=splendor_wins$label), 
+            colour = c("black"), 
+            show.legend = F,
+            size = 4,
+            fill = "white",
+            label.padding = unit(.5, "lines"),
+            label.r = unit(0.75, "lines"), #roundness of outer label line
+            label.size = 1.5) + # thickness of outer label line 
+  labs(title = "Who wins?") +
+    theme(plot.subtitle = element_text(margin=margin(0,0,30,0)),
+          axis.line = element_blank(), 
+          axis.ticks = element_blank())
+
+```
+
+
+On average, how many cards does each player finish with?
+
+```{r}
+cards <- splendor_game %>%
+  pivot_longer(cols = "K-cards":"E-cards", names_to = "player", 
+               values_to = "cards")
+
+avg_cards <- group_by(cards, player) %>%
+  summarise(avg_cards = mean(cards))
+
+ggplot(cards, aes(x = cards, fill = player)) +
+  geom_histogram(alpha = .8, position = "dodge", binwidth = 1) +
+  labs(x = "Number of cards", y = NULL) + 
+  scale_x_continuous(breaks = 1:22)+
+  scale_fill_manual(values = splendor_colours, name = "Player", 
+                    labels = c("Emily", "Kathleen"))+
+  labs(title= "How many cards does each player finish with?") +
+  theme(axis.line = element_blank(),
+        axis.ticks = element_blank())
+
+ggplot(cards, aes(x = player, y = cards, fill = player)) +
+  geom_violin(show.legend = F) +
+  geom_boxplot(width = .3, show.legend = F) +
+  geom_jitter(width = .1, show.legend = F)+
+  scale_fill_manual(values = splendor_colours, name = "Player", 
+                    labels = c("Emily", "Kathleen"))+
+  labs(title = "Total cards", subtitle= "How many cards does each player finish with?") +
+  my_theme
+ 
+```

@@ -1,0 +1,190 @@
+---
+title: "The Aplotalypse"
+author: "Emily Nordmann"
+date: "13/04/2020"
+output: html_document
+---
+
+```{r}
+
+library(extrafont)
+library(tidyverse)
+library(readxl)
+library(patchwork)
+library(ggpubr)
+library(waffle)
+library(magick)
+
+duel_game <- read_excel("games.xlsx", sheet = "Duel")%>%
+  drop_na() %>%
+  mutate(overall = if_else(str_detect(Winner, "Emily"), "Emily", "Kathleen"),
+         category = if_else(Winner == "Emily", "Points",
+                            if_else(Winner == "Kathleen", "Points",
+                                    if_else(Winner == "Kathleen-science", "Science",
+                                            if_else(Winner == "Emily-science", "Science",
+                                                    if_else(Winner == "Emily-military", "Military",
+                                                            if_else(Winner == "Kathleen-military", "Military", "NA")))))))
+
+```
+
+# Set up colours for the graphs
+
+```{r}
+duel_colours_2 <- c("#24756E", "#FDE98A")
+```
+
+# Theme stuff
+
+```{r}
+
+my_theme <- theme(plot.title = element_text(size=20, 
+                                            family = "Verdana", 
+                                            face = "bold", 
+                                            hjust = 0.5),
+                  plot.subtitle = element_text(size = 10, 
+                                            family = "Verdana",
+                                            hjust = 0.5),
+                  axis.line = element_blank(), 
+                  axis.ticks = element_blank(),
+                  plot.background = element_rect("#E7E1DE"),
+                  legend.background = element_rect("#E7E1DE"),
+                  legend.text = element_text(family = "Verdana"),
+                  panel.background = element_rect("#E7E1DE"),
+                  legend.position = "bottom")
+             
+
+```
+
+
+```{r}
+# calculate percent wins for each player
+
+overall_wins <- duel_game %>%
+  group_by(overall) %>%
+  count() %>%
+  ungroup() %>%
+  mutate(prop = n/sum(n),
+         percent = prop * 100,
+         ymax = cumsum(prop),
+         ymin = c(0, head(ymax, n=-1)),
+         labelPosition = (ymax + ymin) /2,
+         label = paste0(overall, "\n ", round(percent,2), "%")) 
+
+category_wins <- duel_game %>%
+  group_by(overall, category) %>%
+  count() %>%
+  ungroup() %>%
+  mutate(prop = n/sum(n),
+         percent = prop * 100,
+         ymax = cumsum(prop),
+         ymin = c(0, head(ymax, n=-1)),
+         labelPosition = (ymax + ymin) /2,
+         label = paste0(overall, "\n ", round(percent,2), "%")) 
+```
+
+
+Waffle plot - who wins Duel?
+
+```{r}
+p1 <- duel_game %>%
+  count(overall) %>%
+  ggplot(aes(fill = overall, values = n)) +
+  labs(title = "Winner", subtitle = "All categories", fill = NULL, colour = NULL,
+       x = "Winner") +
+  guides(fill = NULL, colour = NULL, x = NULL, y = NULL)  +
+  geom_waffle(n_rows = 10, # number of rows
+              size = .8, # thickness of tile line
+              colour = "black", # colour of tile line
+              flip = F, # controls if split left/right or up/down 
+              radius = unit(4, "pt"), # adds gap between tiles
+              show.legend = F,
+              make_proportional = TRUE) +
+  scale_fill_manual(values = duel_colours_2) + # add patchwork colours
+  geom_label(family = "Verdana", 
+             x=c(4, 9), 
+             aes(y=5.5, 
+                 label=overall_wins$label), 
+            colour = c("black"), 
+            show.legend = F,
+            size = 4,
+            fill = "white",
+            label.padding = unit(.5, "lines"),
+            label.r = unit(0.75, "lines"), #roundness of outer label line
+            label.size = 1.5) + # thickness of outer label line
+  theme_enhance_waffle() +
+  my_theme
+```
+
+Type of wins
+
+When a player wins, how do they win?
+
+```{r}
+p2 <- duel_game %>%
+  group_by(overall, category) %>%
+  count() %>%
+  ungroup(category) %>%
+  mutate(prop = (n/sum(n))) %>%
+  ggplot(aes(x = overall, y = prop, fill = category)) +
+  labs(title = "Winner", subtitle = "When a player wins, how do they win?", 
+       x = NULL, 
+       fill = NULL, colour = NULL, 
+       y = NULL) +
+  guides(fill = NULL, colour = NULL, x = NULL, y = NULL) +
+  geom_col(colour = "black") +
+  scale_fill_manual(values = c("#a6191c", "#006fa3", "#047b41")) +
+  scale_y_continuous(labels = scales::percent) +
+  my_theme
+```
+
+
+Strategy - where does each player get their points from?
+
+```{r}
+p3 <- duel_game %>%
+  filter(category == "Points") %>%
+  pivot_longer(cols = `K-Blue`:`E-Military`, names_to = "type", values_to = "Points") %>%
+  separate(col = "type", into = c("player", "type"), sep = "-") %>%
+  filter(Winner == "Emily" & player == "E" |Winner == "Kathleen" & player == "K") %>%
+  group_by(Winner, player, type) %>%
+  summarise(avg_points = mean(Points)) %>%
+  ggplot(aes(x = reorder(type, avg_points), y = avg_points, fill = player)) +
+  geom_col(position = "dodge", colour = "black") +
+  coord_flip() +
+  labs(x = NULL, y = "Average points per game", title = "Winning Strategies",
+       subtitle = "Where does each player get their points from when they win?") +
+  scale_fill_manual(values = duel_colours_2, 
+                    name = "Player", 
+                    labels = c(c("Emily", "Kathleen"))) +
+  my_theme
+```
+
+Put it all together
+
+
+```{r}
+
+logo <- image_read("duel.jpg") # from magick
+
+# stitch together plots using patchwork
+
+
+p4 <- ggplot() +
+  background_image(logo) + # from ggpubr
+  labs(title = "Game 2: Duel",
+       subtitle = paste0("Games = ", nrow(duel_game))) +
+  coord_fixed() +
+  my_theme
+
+
+p4 + p2 + p1 + p3 +
+  plot_layout(ncol = 2, 
+              nrow = 2, 
+              widths = c(2,2)) +
+  plot_annotation(
+  caption = '@emilynordmann'
+) 
+
+ggsave(filename = "duel_full.png", width = 10, height = 10)
+```
+

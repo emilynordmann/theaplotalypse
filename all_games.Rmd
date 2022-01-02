@@ -1,0 +1,136 @@
+---
+title: "All"
+author: "Emily Nordmann"
+date: "02/01/2022"
+output: html_document
+---
+
+```{r}
+library(extrafont)
+library(tidyverse)
+library(readxl)
+library(patchwork)
+library(ggpubr)
+library(waffle)
+library(magick)
+
+duel_game <- read_excel("games.xlsx", sheet = "Duel")%>%
+  mutate(Winner = if_else(str_detect(Winner, "Emily"), "Emily", "Kathleen")) %>%
+  select(Winner, Game) %>%
+  mutate(Title = "7W: Duel")
+
+patchwork_game <- read_excel("games.xlsx", sheet = "Patchwork")%>%
+  select(Winner, Game) %>%
+  drop_na()%>%
+  mutate(Title = "Patchwork")
+
+splendor_game <- read_excel("games.xlsx", sheet = "Splendor")%>%
+  select(Winner, Game) %>%
+  drop_na()%>%
+  mutate(Title = "Splendor")
+
+carcassone_game <- read_excel("games.xlsx", sheet = "Carcassone")%>%
+  select(Winner, Game) %>%
+  drop_na()%>%
+  mutate(Title = "Carcassone")
+
+ticket_game <- read_excel("games.xlsx", sheet = "Ticket to Ride")%>%
+  select(Winner, Game) %>%
+  drop_na()%>%
+  mutate(Title = "Ticket to Ride")
+
+all_games <- bind_rows(duel_game, patchwork_game,splendor_game, carcassone_game, ticket_game)
+```
+
+# Theme stuff
+
+```{r}
+
+my_theme <- theme(plot.title = element_text(size=14, 
+                                            family = "Verdana", 
+                                            face = "bold", 
+                                            hjust = 0.5),
+                  plot.subtitle = element_text(size = 10, 
+                                            family = "Verdana",
+                                            hjust = 0.5),
+                  axis.line = element_blank(), 
+                  axis.ticks = element_blank(),
+                  plot.background = element_rect("#E7E1DE"),
+                  legend.background = element_rect("#E7E1DE"),
+                  legend.text = element_text(family = "Verdana"),
+                  panel.background = element_rect("#E7E1DE"),
+                  legend.position = "bottom")
+             
+
+```
+
+```{r}
+# calculate percent wins for each player
+
+all_wins <- all_games %>%
+  group_by(Winner) %>%
+  count() %>%
+  ungroup() %>%
+  mutate(prop = n/sum(n),
+         percent = prop * 100,
+         ymax = cumsum(prop),
+         ymin = c(0, head(ymax, n=-1)),
+         labelPosition = (ymax + ymin) /2,
+         label = paste0(Winner, "\n ", round(percent,2), "%")) 
+```
+
+
+Waffle plot - who wins Duel?
+
+```{r}
+all_games %>%
+  count(Title, Winner) %>%
+  ggplot(aes(fill = Winner, values = n)) +
+  labs(title = "Winner", subtitle = "All games", fill = NULL, colour = NULL,
+       x = "Winner") +
+  guides(fill = NULL, colour = NULL, x = NULL, y = NULL)  +
+  geom_waffle(n_rows = 10, # number of rows
+              size = .8, # thickness of tile line
+              colour = "black", # colour of tile line
+              flip = F, # controls if split left/right or up/down 
+              radius = unit(4, "pt"), # adds gap between tiles
+              show.legend = F,
+              make_proportional = TRUE) +
+#  scale_fill_manual(values = duel_colours_2) + # add patchwork colours
+#  geom_label(family = "Verdana", 
+#             x=c(4, 9), 
+#             aes(y=5.5, 
+#                 label=all_wins$label), 
+#            colour = c("black"), 
+#            show.legend = F,
+#            size = 4,
+#            fill = "white",
+#            label.padding = unit(.5, "lines"),
+#            label.r = unit(0.75, "lines"), #roundness of outer label line
+#            label.size = 1.5) + # thickness of outer label line
+  theme_enhance_waffle() +
+  my_theme +
+  facet_wrap(~Title)
+```
+
+```{r}
+all_games %>%
+  ggplot(aes(x = Game, fill = Winner)) +
+  geom_bar(show.legend = F) +
+  facet_wrap(~Winner, nrow = 2) +
+  labs(title = "")
+
+all_games %>%
+  count(Winner, Game) %>%
+  group_by(Game) %>%
+  mutate(prop = n/sum(n))%>%
+  ungroup() %>%
+  ggplot(aes(x = Game, y = prop, fill = Winner)) +
+  geom_col(show.legend = T) +
+  geom_hline(yintercept = .5, linetype = "dashed", size = 1) +
+  labs(title = "Proportion of games won", subtitle = "By game and player", y = NULL) +
+  my_theme +
+  scale_x_continuous(breaks = seq(0,40, by = 5))
+
+```
+

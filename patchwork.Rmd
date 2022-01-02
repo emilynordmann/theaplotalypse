@@ -205,6 +205,26 @@ p5 <- patchwork_game %>%
   my_theme
 ```
 
+```{r}
+patchwork_game %>%
+  group_by(Winner, special) %>%
+  count() %>%
+  ungroup(special) %>%
+  mutate(prop = n/sum(n)) %>%
+  ggplot(aes(x = Winner, y =prop, fill = special)) +
+  geom_col(colour = "black") +
+  scale_fill_manual(values = patchwork_colours, name = "Special tile") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(y = NULL, title = "Special tile vs Winner", subtitle = "How often does the person who wins have the special tile?") +
+  my_theme +
+  theme(legend.position = "bottom")
+
+ggsave("special_tile.png", width = 8, height = 7)
+
+```
+
+
+
 Put it all together
 
 
